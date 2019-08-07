@@ -16,7 +16,7 @@ travis-ci = { repository = "serde-rs/json" }
 appveyor = { repository = "serde-rs/json" }
 
 [dependencies]
-serde = "1.0.60"
+serde = { version = "1.0.60", default-features = false }
 indexmap = { version = "1.0", optional = true }
 itoa = "0.4.3"
 ryu = "1.0"
@@ -39,7 +39,39 @@ features = ["raw_value"]
 ### FEATURES #################################################################
 
 [features]
-default = []
+default = ["std"]
+
+# Pass std flag to serde. This is the default.
+
+# Pass alloc flag to serde. (Counter-intuitively, *we* still use std even if this flag is on)
+#
+# The insight here is that mobilecoin only depends on serde_json in std targets, but it
+# wants to build with `serde/alloc` everywhere in all configurations. It turns out that
+# `serde_json` in std mode will build fine against `serde/alloc`. This is because
+# `serde/alloc` has a strictly less-restrictive trait bound for errors, and `serde_json` doesn't
+# actually use `std::collections::HashMap` it uses `std::collections::Btree` which `serde/alloc`
+# has support for, since that became part of `alloc::collections`.
+#
+# IF serde/alloc and serde/std were compatible, we could simply change the dependency
+# in this Cargo.toml to always use `serde/alloc` and we wouldn't need any std or alloc
+# features in this crate. Unfortunately that isn't the case. So the only thing
+# we actually need the flags for in this crate is to be able to pass them on to serde.
+#
+# In a future revision, we might try to make this crate *actually* a no_std crate,
+# but that isn't a development goal for mobilecoin at this time. The main difficulty
+# is that we must replace `std::io::Read, std::io::Write, std::io::Error, std::io::Result`
+# in a sane way. The only way to do that is what we also do in our fork of rmp, which
+# is use a `no_std` shim that provides core-compatible versions of these. We can do this
+# but it's unlikely to get accepted upstream as a patch. Since we don't actually need
+# this functionality (we use rjson in the enclave and it doesn't use serde), the only
+# purpose of implementing it would be to create something that would be accepted upstream.
+#
+# Actually, it's possible that this patch *would* be accepted to developers upstream --
+# possibly if we called the features `serde_std` and `serde_alloc` they would accept
+# that it's useful to have `serde_json` able to be used in a project without forcing `serde_std`,
+# since that has project-wide consequences.
+std = ["serde/std"]
+alloc = ["serde/alloc"]
 
 # Use a different representation for the map type of serde_json::Value.
 # This allows data to be read into a Value and written back to a JSON string
